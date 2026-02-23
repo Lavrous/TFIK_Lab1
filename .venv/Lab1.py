@@ -8,14 +8,22 @@ from PySide6.QtWidgets import (
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, QIODevice, QObject, QEvent
 
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 class LanguageProcessorApp(QObject):
     def __init__(self):
         super().__init__()
-
-        ui_file_name = "design.ui"
+        ui_file_name = resource_path("design.ui")
         ui_file = QFile(ui_file_name)
-        ui_file.open(QIODevice.ReadOnly)
+        if not ui_file.open(QIODevice.ReadOnly):
+            print(f"Не удалось открыть {ui_file_name}")
+            sys.exit(-1)
+
         loader = QUiLoader()
         self.window = loader.load(ui_file)
         ui_file.close()
@@ -162,7 +170,7 @@ class LanguageProcessorApp(QObject):
             <li><b>Открыть:</b> Открывает существующий файл в редакторе.</li>
             <li><b>Сохранить:</b> Сохраняет текущие изменения в открытом файле.</li>
             <li><b>Сохранить как:</b> Позволяет сохранить текущий текст в новый файл.</li>
-            <li><b>Выход:</b> Закрывает программу с предупреждением о потере данных.</li>
+            <li><b>Выход:</b> Закрывает программу с предупреждением</li>
         </ul>
         <h3>Меню "Правка"</h3>
         <ul>
@@ -171,7 +179,7 @@ class LanguageProcessorApp(QObject):
             <li><b>Вырезать (Ctrl+X):</b> Удаляет выделенный текст и помещает его в буфер обмена.</li>
             <li><b>Копировать (Ctrl+C):</b> Помещает выделенный текст в буфер обмена.</li>
             <li><b>Вставить (Ctrl+V):</b> Вставляет текст из буфера обмена.</li>
-            <li><b>Удалить (Del):</b> Удаляет выделенный текст без сохранения в буфер.</li>
+            <li><b>Удалить (Ctrl+D):</b> Удаляет выделенный текст без сохранения в буфер.</li>
             <li><b>Выделить всё (Ctrl+A):</b> Выделяет весь текст в активном поле.</li>
         </ul>
         """
@@ -187,7 +195,7 @@ class LanguageProcessorApp(QObject):
         """
         QMessageBox.about(self.window, "О программе", about_text)
 
-    def run_code(self):
+    def run_code(self): # Заглушка. Просто переносит текст
         code_text = self.window.codeArea.toPlainText()
         self.window.outputArea.setPlainText(code_text)
 
