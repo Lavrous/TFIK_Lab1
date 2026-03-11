@@ -15,6 +15,31 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
+class LexicalAnalyzer:
+    def __init__(self):
+        self.keywords = {
+            "def": 1,
+            "int": 2,
+            "return": 3
+        }
+    # Вспомогательные функции для сканера
+    def make_token(self, code, type_name, lexeme, line, start, end, is_error=False): # Быстрый словарь для analyze
+        return {
+            "code": code,
+            "type": type_name,
+            "lexeme": lexeme,
+            "line": line,
+            "start": start,
+            "end": end,
+            "is_error": is_error
+        }
+
+    def classify_word(self, word, line, start, end): # Для ключевых слов
+        if word in self.keywords:
+            return self._make_token(self.keywords[word], "ключевое слово", word, line, start, end)
+        else:
+            return self._make_token(4, "идентификатор", word, line, start, end)
+
 class LanguageProcessorApp(QObject):
     def __init__(self):
         super().__init__()
@@ -129,13 +154,12 @@ class LanguageProcessorApp(QObject):
                 QMessageBox.critical(self.window, "Ошибка", f"Не удалось открыть файл:\n{e}")
 
     def save_file(self):
-        if self.current_file_path:
-            try:
-                content = self.window.codeArea.toPlainText()
-                with open(self.current_file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-            except Exception as e:
-                QMessageBox.critical(self.window, "Ошибка", f"Не удалось сохранить файл:\n{e}")
+        try:
+            content = self.window.codeArea.toPlainText()
+            with open(self.current_file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            QMessageBox.critical(self.window, "Ошибка", f"Не удалось сохранить файл:\n{e}")
         else:
             self.save_file_as()
 

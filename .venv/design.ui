@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>800</width>
-    <height>600</height>
+    <height>602</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -36,20 +36,57 @@
        <number>20</number>
       </property>
       <item>
-       <widget class="QPlainTextEdit" name="codeArea">
-        <property name="layoutDirection">
-         <enum>Qt::LayoutDirection::LeftToRight</enum>
-        </property>
-        <property name="autoFillBackground">
-         <bool>false</bool>
-        </property>
-       </widget>
+       <widget class="QPlainTextEdit" name="codeArea"/>
       </item>
       <item>
-       <widget class="QPlainTextEdit" name="outputArea">
-        <property name="readOnly">
+       <widget class="QTableWidget" name="outputArea">
+        <attribute name="horizontalHeaderVisible">
          <bool>true</bool>
-        </property>
+        </attribute>
+        <attribute name="horizontalHeaderCascadingSectionResizes">
+         <bool>false</bool>
+        </attribute>
+        <attribute name="horizontalHeaderMinimumSectionSize">
+         <number>32</number>
+        </attribute>
+        <attribute name="horizontalHeaderDefaultSectionSize">
+         <number>181</number>
+        </attribute>
+        <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
+         <bool>false</bool>
+        </attribute>
+        <attribute name="horizontalHeaderStretchLastSection">
+         <bool>false</bool>
+        </attribute>
+        <attribute name="verticalHeaderVisible">
+         <bool>true</bool>
+        </attribute>
+        <attribute name="verticalHeaderShowSortIndicator" stdset="0">
+         <bool>false</bool>
+        </attribute>
+        <attribute name="verticalHeaderStretchLastSection">
+         <bool>false</bool>
+        </attribute>
+        <column>
+         <property name="text">
+          <string>Условный код</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Тип лексемы</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Лексема</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Местоположение</string>
+         </property>
+        </column>
        </widget>
       </item>
      </layout>
