@@ -39,7 +39,10 @@
        <widget class="QPlainTextEdit" name="codeArea"/>
       </item>
       <item>
-       <widget class="QTableWidget" name="outputArea">
+       <widget class="QTableWidget" name="outputTable">
+        <property name="editTriggers">
+         <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+        </property>
         <attribute name="horizontalHeaderVisible">
          <bool>true</bool>
         </attribute>

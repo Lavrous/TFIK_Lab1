@@ -3,10 +3,11 @@ import os
 import resources_rc
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QMessageBox, QDialog,
-    QVBoxLayout, QTextBrowser, QPushButton
+    QVBoxLayout, QTextBrowser, QPushButton, QTableWidgetItem, QHeaderView
 )
+from PySide6.QtGui import QTextCursor, QColor
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import QFile, QIODevice, QObject, QEvent
+from PySide6.QtCore import QFile, QIODevice, QObject, QEvent, Qt
 
 def resource_path(relative_path):
     try:
@@ -26,7 +27,7 @@ class LexicalAnalyzer:
     def make_token(self, code, type, lexeme, line, start, end, is_error=False): # Быстрый словарь для analyze
         return {
             "code": code,
-            "type": type_name,
+            "type": type,
             "lexeme": lexeme,
             "line": line,
             "start": start,
@@ -36,9 +37,9 @@ class LexicalAnalyzer:
 
     def classify_word(self, word, line, start, end): # Для ключевых слов
         if word in self.keywords:
-            return self._make_token(self.keywords[word], "ключевое слово", word, line, start, end)
+            return self.make_token(self.keywords[word], "ключевое слово", word, line, start, end)
         else:
-            return self._make_token(4, "идентификатор", word, line, start, end)
+            return self.make_token(4, "идентификатор", word, line, start, end)
 
     def analyze(self, text):
         tokens = []
@@ -63,27 +64,26 @@ class LexicalAnalyzer:
                     state = 2
                     lexeme += char
                 elif char == '\n':
-                    tokens.append(self._make_token(13, "перенос строки", "\\n", line, start_pos, pos))
+                    tokens.append(self.make_token(13, "перенос строки", "\\n", line, start_pos, pos))
                     line += 1
                     pos = 0  # Обнулится до 1 в конце цикла
                 elif char == '(':
-                    tokens.append(self._make_token(5, "разделитель", "(", line, start_pos, pos))
+                    tokens.append(self.make_token(5, "разделитель", "(", line, start_pos, pos))
                 elif char == ')':
-                    tokens.append(self._make_token(6, "разделитель", ")", line, start_pos, pos))
+                    tokens.append(self.make_token(6, "разделитель", ")", line, start_pos, pos))
                 elif char == ':':
-                    tokens.append(self._make_token(7, "разделитель", ":", line, start_pos, pos))
+                    tokens.append(self.make_token(7, "разделитель", ":", line, start_pos, pos))
                 elif char == '+':
-                    tokens.append(self._make_token(8, "оператор", "+", line, start_pos, pos))
+                    tokens.append(self.make_token(8, "оператор", "+", line, start_pos, pos))
                 elif char == ',':
-                    tokens.append(self._make_token(9, "разделитель", ",", line, start_pos, pos))
+                    tokens.append(self.make_token(9, "разделитель", ",", line, start_pos, pos))
                 elif char == '*':
-                    tokens.append(self._make_token(12, "оператор", "*", line, start_pos, pos))
+                    tokens.append(self.make_token(12, "оператор", "*", line, start_pos, pos))
                 elif char == '-':
                     state = 3  # Переход к проверке стрелки ->
                     lexeme += char
                 else:
-                    # Недопустимый символ
-                    tokens.append(self._make_token("ERROR", "ОШИБКА", char, line, start_pos, pos, is_error=True))
+                    tokens.append(self.make_token("ERROR", "ОШИБКА", char, line, start_pos, pos, is_error=True))
 
             # 1 = Сбор букв
             elif state == 1:
@@ -91,7 +91,7 @@ class LexicalAnalyzer:
                     lexeme += char
                 else:
                     # Слово закончилось, классифицируем
-                    tokens.append(self._classify_word(lexeme, line, start_pos, pos - 1))
+                    tokens.append(self.classify_word(lexeme, line, start_pos, pos - 1))
                     lexeme = ""
                     state = 0
                     i -= 1
@@ -102,20 +102,20 @@ class LexicalAnalyzer:
                 if char in ' \t':
                     lexeme += char
                 else:
-                    tokens.append(self._make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
+                    tokens.append(self.make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
                     lexeme = ""
                     state = 0
                     i -= 1
                     pos -= 1
 
-            # 3 = Обработка - (для ->)
+            # 3 = Обработка (для ->)
             elif state == 3:
                 if char == '>':
                     lexeme += char
-                    tokens.append(self._make_token(11, "оператор", "->", line, start_pos, pos))
+                    tokens.append(self.make_token(11, "оператор", "->", line, start_pos, pos))
                 else:
                     # Если после минуса не >, по примеру это должна быть ошибка?
-                    tokens.append(self._make_token("ERROR", "ОШИБКА (ожидалось >)", lexeme, line, start_pos, pos - 1,
+                    tokens.append(self.make_token("ERROR", "ОШИБКА (ожидалось >)", lexeme, line, start_pos, pos - 1,
                                                    is_error=True))
                     i -= 1
                     pos -= 1
@@ -127,13 +127,13 @@ class LexicalAnalyzer:
 
         # Обработка конца файла (если файл закончился, а мы в состоянии сбора)
         if state == 1:
-            tokens.append(self._classify_word(lexeme, line, start_pos, pos - 1))
+            tokens.append(self.classify_word(lexeme, line, start_pos, pos - 1))
         elif state == 2:
-            tokens.append(self._make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
+            tokens.append(self.make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
         elif state == 3:
-            tokens.append(self._make_token("ERROR", "ОШИБКА", lexeme, line, start_pos, pos - 1, is_error=True))
+            tokens.append(self.make_token("ERROR", "ОШИБКА", lexeme, line, start_pos, pos - 1, is_error=True))
 
-        tokens.append(self._make_token(14, "конец функции (EOF)", "EOF", line, pos, pos))
+        tokens.append(self.make_token(14, "конец функции (EOF)", "EOF", line, pos, pos))
 
         return tokens
 
@@ -152,7 +152,9 @@ class LanguageProcessorApp(QObject):
         ui_file.close()
         self.current_file_path = None
         self.window.codeArea.setVisible(False)
-        self.window.outputArea.setVisible(False)
+        self.window.outputTable.setVisible(False)
+        self.window.outputTable.itemClicked.connect(self.table_click)
+        self.scanner = LexicalAnalyzer()
 
         self.window.actionAdd.triggered.connect(self.create_file)
         self.window.actionOpen.triggered.connect(self.open_file)
@@ -177,11 +179,11 @@ class LanguageProcessorApp(QObject):
     # Вспомогательные функции
     def show_work_areas(self):
         self.window.codeArea.setVisible(True)
-        self.window.outputArea.setVisible(True)
+        self.window.outputTable.setVisible(True)
 
     def get_active_text_area(self):
         focused_widget = QApplication.focusWidget()
-        if focused_widget in (self.window.codeArea, self.window.outputArea):
+        if focused_widget in (self.window.codeArea, self.window.outputTable):
             return focused_widget
         return None
 
@@ -230,7 +232,7 @@ class LanguageProcessorApp(QObject):
                     f.write("")
                 self.current_file_path = file_path
                 self.window.codeArea.clear()
-                self.window.outputArea.clear()
+                self.window.outputTable.setRowCount(0)
                 self.show_work_areas()
                 self.window.setWindowTitle(f"Языковой процессор - {os.path.basename(file_path)}")
             except Exception as e:
@@ -245,6 +247,7 @@ class LanguageProcessorApp(QObject):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 self.window.codeArea.setPlainText(content)
+                self.window.outputTable.setRowCount(0)
                 self.current_file_path = file_path
                 self.show_work_areas()
                 self.window.setWindowTitle(f"Языковой процессор - {os.path.basename(file_path)}")
@@ -317,9 +320,54 @@ class LanguageProcessorApp(QObject):
         """
         QMessageBox.about(self.window, "О программе", about_text)
 
-    def run_code(self): # Заглушка. Просто переносит текст
+    def run_code(self): # Не заглушка
         code_text = self.window.codeArea.toPlainText()
-        self.window.outputArea.setPlainText(code_text)
+        tokens = self.scanner.analyze(code_text)
+        table = self.window.outputTable
+        table.setRowCount(0)
+        for row_idx, token in enumerate(tokens):
+            table.insertRow(row_idx)
+
+            # Формирование строки местоположения
+            loc_str = f"строка {token['line']}, {token['start']}-{token['end']}"
+
+            # Создание элементов ячеек
+            item_code = QTableWidgetItem(str(token['code']))
+            item_type = QTableWidgetItem(token['type'])
+            item_lexeme = QTableWidgetItem(token['lexeme'])
+            item_loc = QTableWidgetItem(loc_str)
+
+            # Сохраняем данные о позиции
+            item_loc.setData(Qt.UserRole, token)
+
+            table.setItem(row_idx, 0, item_code)
+            table.setItem(row_idx, 1, item_type)
+            table.setItem(row_idx, 2, item_lexeme)
+            table.setItem(row_idx, 3, item_loc)
+
+    def table_click(self, item):
+        row = item.row()
+        loc_item = self.window.outputTable.item(row, 3) # У местоположения индекс 3 в таблице
+        token_data = loc_item.data(Qt.UserRole)
+
+        if not token_data:
+            return
+
+        # Если это ошибка, перемещаем курсор
+        if token_data['is_error']:
+            editor = self.window.codeArea
+            cursor = editor.textCursor()
+
+            cursor.movePosition(QTextCursor.Start)
+            cursor.movePosition(QTextCursor.Down, QTextCursor.MoveAnchor, token_data['line'] - 1)
+            cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, token_data['start'] - 1)
+
+            length = token_data['end'] - token_data['start'] + 1
+            cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, length)
+
+            editor.setTextCursor(cursor)
+            editor.setFocus()
+
 
     # Для закрытия
     def eventFilter(self, obj, event):
