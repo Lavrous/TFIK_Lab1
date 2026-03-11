@@ -39,7 +39,7 @@ class LexicalAnalyzer:
         if word in self.keywords:
             return self.make_token(self.keywords[word], "ключевое слово", word, line, start, end)
         else:
-            return self.make_token(4, "идентификатор", word, line, start, end)
+            return self.make_token(1, "идентификатор", word, line, start, end)
 
     def analyze(self, text):
         tokens = []
@@ -183,7 +183,7 @@ class LanguageProcessorApp(QObject):
 
     def get_active_text_area(self):
         focused_widget = QApplication.focusWidget()
-        if focused_widget in (self.window.codeArea, self.window.outputTable):
+        if focused_widget == self.window.codeArea:
             return focused_widget
         return None
 
@@ -255,14 +255,15 @@ class LanguageProcessorApp(QObject):
                 QMessageBox.critical(self.window, "Ошибка", f"Не удалось открыть файл:\n{e}")
 
     def save_file(self):
+        if not self.current_file_path:
+            self.save_file_as()
+            return
         try:
             content = self.window.codeArea.toPlainText()
             with open(self.current_file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
         except Exception as e:
             QMessageBox.critical(self.window, "Ошибка", f"Не удалось сохранить файл:\n{e}")
-        else:
-            self.save_file_as()
 
     def save_file_as(self):
         file_path, _ = QFileDialog.getSaveFileName(
@@ -339,6 +340,13 @@ class LanguageProcessorApp(QObject):
 
             # Сохраняем данные о позиции
             item_loc.setData(Qt.UserRole, token)
+
+            if token['is_error']:
+                error_color = QColor(255, 200, 200)  # Красный цвет для ошибок
+                item_code.setBackground(error_color)
+                item_type.setBackground(error_color)
+                item_lexeme.setBackground(error_color)
+                item_loc.setBackground(error_color)
 
             table.setItem(row_idx, 0, item_code)
             table.setItem(row_idx, 1, item_type)
