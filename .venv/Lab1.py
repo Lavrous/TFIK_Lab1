@@ -15,6 +15,129 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
+class LexicalAnalyzer:
+    def __init__(self):
+        self.keywords = {
+            "def": 2,
+            "return": 3,
+            "int": 4
+        }
+    # Вспомогательные функции для сканера
+    def make_token(self, code, type, lexeme, line, start, end, is_error=False): # Быстрый словарь для analyze
+        return {
+            "code": code,
+            "type": type_name,
+            "lexeme": lexeme,
+            "line": line,
+            "start": start,
+            "end": end,
+            "is_error": is_error
+        }
+
+    def classify_word(self, word, line, start, end): # Для ключевых слов
+        if word in self.keywords:
+            return self._make_token(self.keywords[word], "ключевое слово", word, line, start, end)
+        else:
+            return self._make_token(4, "идентификатор", word, line, start, end)
+
+    def analyze(self, text):
+        tokens = []
+        state = 0 # от 0 до 3
+        lexeme = "" # Буфер
+        line = 1
+        pos = 1  # Текущая позиция в строке
+        start_pos = 1  # Позиция начала текущей лексемы
+
+        i = 0
+        while i < len(text):
+            char = text[i]
+
+            # 0 = начальное состояние
+            if state == 0:
+                start_pos = pos
+
+                if char.isalpha() or char == '_':
+                    state = 1
+                    lexeme += char
+                elif char in ' \t':
+                    state = 2
+                    lexeme += char
+                elif char == '\n':
+                    tokens.append(self._make_token(13, "перенос строки", "\\n", line, start_pos, pos))
+                    line += 1
+                    pos = 0  # Обнулится до 1 в конце цикла
+                elif char == '(':
+                    tokens.append(self._make_token(5, "разделитель", "(", line, start_pos, pos))
+                elif char == ')':
+                    tokens.append(self._make_token(6, "разделитель", ")", line, start_pos, pos))
+                elif char == ':':
+                    tokens.append(self._make_token(7, "разделитель", ":", line, start_pos, pos))
+                elif char == '+':
+                    tokens.append(self._make_token(8, "оператор", "+", line, start_pos, pos))
+                elif char == ',':
+                    tokens.append(self._make_token(9, "разделитель", ",", line, start_pos, pos))
+                elif char == '*':
+                    tokens.append(self._make_token(12, "оператор", "*", line, start_pos, pos))
+                elif char == '-':
+                    state = 3  # Переход к проверке стрелки ->
+                    lexeme += char
+                else:
+                    # Недопустимый символ
+                    tokens.append(self._make_token("ERROR", "ОШИБКА", char, line, start_pos, pos, is_error=True))
+
+            # 1 = Сбор букв
+            elif state == 1:
+                if char.isalpha() or char.isdigit() or char == '_':
+                    lexeme += char
+                else:
+                    # Слово закончилось, классифицируем
+                    tokens.append(self._classify_word(lexeme, line, start_pos, pos - 1))
+                    lexeme = ""
+                    state = 0
+                    i -= 1
+                    pos -= 1
+
+            # 2 = Сбор пробелов
+            elif state == 2:
+                if char in ' \t':
+                    lexeme += char
+                else:
+                    tokens.append(self._make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
+                    lexeme = ""
+                    state = 0
+                    i -= 1
+                    pos -= 1
+
+            # 3 = Обработка - (для ->)
+            elif state == 3:
+                if char == '>':
+                    lexeme += char
+                    tokens.append(self._make_token(11, "оператор", "->", line, start_pos, pos))
+                else:
+                    # Если после минуса не >, по примеру это должна быть ошибка?
+                    tokens.append(self._make_token("ERROR", "ОШИБКА (ожидалось >)", lexeme, line, start_pos, pos - 1,
+                                                   is_error=True))
+                    i -= 1
+                    pos -= 1
+                lexeme = ""
+                state = 0
+
+            i += 1
+            pos += 1
+
+        # Обработка конца файла (если файл закончился, а мы в состоянии сбора)
+        if state == 1:
+            tokens.append(self._classify_word(lexeme, line, start_pos, pos - 1))
+        elif state == 2:
+            tokens.append(self._make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
+        elif state == 3:
+            tokens.append(self._make_token("ERROR", "ОШИБКА", lexeme, line, start_pos, pos - 1, is_error=True))
+
+        tokens.append(self._make_token(14, "конец функции (EOF)", "EOF", line, pos, pos))
+
+        return tokens
+
+
 class LanguageProcessorApp(QObject):
     def __init__(self):
         super().__init__()
@@ -129,13 +252,12 @@ class LanguageProcessorApp(QObject):
                 QMessageBox.critical(self.window, "Ошибка", f"Не удалось открыть файл:\n{e}")
 
     def save_file(self):
-        if self.current_file_path:
-            try:
-                content = self.window.codeArea.toPlainText()
-                with open(self.current_file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-            except Exception as e:
-                QMessageBox.critical(self.window, "Ошибка", f"Не удалось сохранить файл:\n{e}")
+        try:
+            content = self.window.codeArea.toPlainText()
+            with open(self.current_file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            QMessageBox.critical(self.window, "Ошибка", f"Не удалось сохранить файл:\n{e}")
         else:
             self.save_file_as()
 
