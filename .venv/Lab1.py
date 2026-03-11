@@ -133,7 +133,7 @@ class LexicalAnalyzer:
         elif state == 3:
             tokens.append(self.make_token("ERROR", "ОШИБКА", lexeme, line, start_pos, pos - 1, is_error=True))
 
-        tokens.append(self.make_token(14, "конец функции (EOF)", "EOF", line, pos, pos))
+        tokens.append(self.make_token(14, "конец файла (EOF)", "EOF", line, pos, pos))
 
         return tokens
 
@@ -315,7 +315,7 @@ class LanguageProcessorApp(QObject):
 
     def show_about(self):
         about_text = """
-        <h3>Языковой процессор v0.1</h3>
+        <h3>Языковой процессор v0.2</h3>
         <p>Данная программа является результатом лабораторных работ по ТФИК.</p>
         <p><b>Разработано с использованием:</b> Python и PySide6.</p>
         """
