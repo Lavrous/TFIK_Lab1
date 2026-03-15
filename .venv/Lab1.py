@@ -43,11 +43,11 @@ class LexicalAnalyzer:
 
     def analyze(self, text):
         tokens = []
-        state = 0 # от 0 до 3
-        lexeme = "" # Буфер
+        state = 0
+        lexeme = ""
         line = 1
-        pos = 1  # Текущая позиция в строке
-        start_pos = 1  # Позиция начала текущей лексемы
+        pos = 1
+        start_pos = 1
 
         i = 0
         while i < len(text):
@@ -55,35 +55,37 @@ class LexicalAnalyzer:
 
             # 0 = начальное состояние
             if state == 0:
-                start_pos = pos
-
-                if char.isalpha() or char == '_':
-                    state = 1
-                    lexeme += char
-                elif char in ' \t':
-                    state = 2
-                    lexeme += char
+                if char in ' \t\r':
+                    pass
+                # При переносе строки увеличиваем счетчик строк
                 elif char == '\n':
-                    tokens.append(self.make_token(13, "перенос строки", "\\n", line, start_pos, pos))
                     line += 1
                     pos = 0  # Обнулится до 1 в конце цикла
+                elif char.isalpha() or char == '_':
+                    state = 1
+                    start_pos = pos
+                    lexeme += char
                 elif char == '(':
-                    tokens.append(self.make_token(5, "разделитель", "(", line, start_pos, pos))
+                    tokens.append(self.make_token(5, "разделитель", "(", line, pos, pos))
                 elif char == ')':
-                    tokens.append(self.make_token(6, "разделитель", ")", line, start_pos, pos))
+                    tokens.append(self.make_token(6, "разделитель", ")", line, pos, pos))
                 elif char == ':':
-                    tokens.append(self.make_token(7, "разделитель", ":", line, start_pos, pos))
+                    tokens.append(self.make_token(7, "разделитель", ":", line, pos, pos))
                 elif char == '+':
-                    tokens.append(self.make_token(8, "оператор", "+", line, start_pos, pos))
+                    tokens.append(self.make_token(8, "оператор", "+", line, pos, pos))
                 elif char == ',':
-                    tokens.append(self.make_token(9, "разделитель", ",", line, start_pos, pos))
+                    tokens.append(self.make_token(9, "разделитель", ",", line, pos, pos))
                 elif char == '*':
-                    tokens.append(self.make_token(12, "оператор", "*", line, start_pos, pos))
+                    tokens.append(self.make_token(12, "оператор", "*", line, pos, pos))
                 elif char == '-':
                     state = 3  # Переход к проверке стрелки ->
+                    start_pos = pos
                     lexeme += char
+                elif char == ';':
+                    tokens.append(self.make_token(13, "конец кода", ";", line, pos, pos))
+                    break
                 else:
-                    tokens.append(self.make_token("ERROR", "ОШИБКА", char, line, start_pos, pos, is_error=True))
+                    tokens.append(self.make_token("ERROR", "ОШИБКА", char, line, pos, pos, is_error=True))
 
             # 1 = Сбор букв
             elif state == 1:
@@ -97,26 +99,13 @@ class LexicalAnalyzer:
                     i -= 1
                     pos -= 1
 
-            # 2 = Сбор пробелов
-            elif state == 2:
-                if char in ' \t':
-                    lexeme += char
-                else:
-                    tokens.append(self.make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
-                    lexeme = ""
-                    state = 0
-                    i -= 1
-                    pos -= 1
-
             # 3 = Обработка (для ->)
             elif state == 3:
                 if char == '>':
                     lexeme += char
                     tokens.append(self.make_token(11, "оператор", "->", line, start_pos, pos))
                 else:
-                    # Если после минуса не >, по примеру это должна быть ошибка?
-                    tokens.append(self.make_token("ERROR", "ОШИБКА (ожидалось >)", lexeme, line, start_pos, pos - 1,
-                                                   is_error=True))
+                    tokens.append(self.make_token("ERROR", "ОШИБКА (ожидалось >)", lexeme, line, start_pos, pos - 1, is_error=True))
                     i -= 1
                     pos -= 1
                 lexeme = ""
@@ -125,15 +114,11 @@ class LexicalAnalyzer:
             i += 1
             pos += 1
 
-        # Обработка конца файла (если файл закончился, а мы в состоянии сбора)
+        # Обработка конца файла (если код закончился без ;, а мы были в процессе сбора лексемы)
         if state == 1:
             tokens.append(self.classify_word(lexeme, line, start_pos, pos - 1))
-        elif state == 2:
-            tokens.append(self.make_token(10, "разделитель", "пробел(ы)", line, start_pos, pos - 1))
         elif state == 3:
             tokens.append(self.make_token("ERROR", "ОШИБКА", lexeme, line, start_pos, pos - 1, is_error=True))
-
-        tokens.append(self.make_token(14, "конец файла (EOF)", "EOF", line, pos, pos))
 
         return tokens
 
