@@ -73,7 +73,7 @@ def simple(x: int):
 
 ## Диаграмма состояний
 
-![Диаграмма лексем](https://github.com/user-attachments/assets/8cba3b27-f92e-45f2-91c1-9e1e46b204ce)
+![Image](https://github.com/user-attachments/assets/475a243e-da08-40c9-95fd-9271b7cb6b9c)
 
 Аппарат последовательно читает текст символ за символом, перемещаясь между состояниями в зависимости от встреченного символа.
 
@@ -141,6 +141,11 @@ def calc(a: int, b: int, c: int) -> int:
 | 6 | разделитель | `)` | строка 2, 22–22 |
 | 13 | конец кода | `;` | строка 2, 23–23 |
 
+<img width="941" height="970" alt="Image" src="https://github.com/user-attachments/assets/2822dc53-1407-4ef0-bb29-609db71383a2" />
+
+<img width="918" height="973" alt="Image" src="https://github.com/user-attachments/assets/163abe28-f8bf-4e51-b46a-12bb2637f13b" />
+
+<img width="917" height="969" alt="Image" src="https://github.com/user-attachments/assets/a971c240-835b-4dbe-a41a-e39aceba6a93" />
 </details>
 
 <details>
@@ -200,4 +205,9 @@ def calc(a: int, b: int, c: int) -> int:
 | 6 | разделитель | `)` | строка 2, 27–27 |
 | 13 | конец кода | `;` | строка 2, 28–28 |
 
+<img width="925" height="976" alt="Image" src="https://github.com/user-attachments/assets/07aeba9d-4de0-4e7c-a051-da343de614f0" />
+
+<img width="912" height="967" alt="Image" src="https://github.com/user-attachments/assets/78115082-ea78-4c1f-ad75-2c7e58d0e6e0" />
+
+<img width="937" height="972" alt="Image" src="https://github.com/user-attachments/assets/a3d44b28-c893-44df-b15c-89d76d0c9aef" />
 </details>
