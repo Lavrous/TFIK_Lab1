@@ -16,6 +16,32 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout_2">
     <item>
+     <widget class="QComboBox" name="regexSelector">
+      <item>
+       <property name="text">
+        <string>Числа, начинающиеся на 9</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Номера карт Amex</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Валюты</string>
+       </property>
+      </item>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="matchCountLabel">
+      <property name="text">
+       <string>Найдено: 0</string>
+      </property>
+     </widget>
+    </item>
+    <item>
      <layout class="QVBoxLayout" name="verticalLayout">
       <property name="spacing">
        <number>45</number>
@@ -59,7 +85,7 @@
          <bool>false</bool>
         </attribute>
         <attribute name="horizontalHeaderStretchLastSection">
-         <bool>false</bool>
+         <bool>true</bool>
         </attribute>
         <attribute name="verticalHeaderVisible">
          <bool>true</bool>
@@ -72,22 +98,17 @@
         </attribute>
         <column>
          <property name="text">
-          <string>Условный код</string>
+          <string>Найденная подстрока</string>
          </property>
         </column>
         <column>
          <property name="text">
-          <string>Тип лексемы</string>
+          <string>Начальная позиция</string>
          </property>
         </column>
         <column>
          <property name="text">
-          <string>Лексема</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Местоположение</string>
+          <string>Длина</string>
          </property>
         </column>
        </widget>
