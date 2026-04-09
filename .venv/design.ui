@@ -24,7 +24,12 @@
       </item>
       <item>
        <property name="text">
-        <string>Номера карт Amex</string>
+        <string>Номера карт Amex (РВ)</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Номера карт Amex (Автомат)</string>
        </property>
       </item>
       <item>

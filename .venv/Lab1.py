@@ -22,16 +22,16 @@ class RegexAnalyzer:
     def __init__(self):
         self.patterns = [
             # Числа, начинающиеся на 9
-            re.compile(r"\b9\d*(?:[.,]\d+)?\b"),
+            re.compile(r"(?<![\d\w.,])9\d*(?:[.,]\d+)?\b"),
 
             # Карты Amex (начинаются с 34 или 37, всего 15 цифр, возможны пробелы или тире)
             re.compile(r"\b(?:34|37)\d{2}[ -]?\d{6}[ -]?\d{5}\b"),
 
             # Валюты
-            re.compile(r"(?:[$€£¥]\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s*[₽€])")
+            re.compile(r"(?:[$€£¥]\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?[₽€])")
         ]
 
-    def analyze(self, text, pattern_index):
+    def analyze_regex(self, text, pattern_index):
         matches_data = []
         pattern = self.patterns[pattern_index]
 
@@ -56,6 +56,104 @@ class RegexAnalyzer:
 
         return matches_data
 
+
+class AmexAutomatonAnalyzer:
+    def analyze(self, text):
+        matches_data = []
+        state = 0
+        digit_count = 0
+        start_abs = -1
+        i = 0
+
+        while i < len(text):
+            char = text[i]
+
+            if state == 0:
+                if char == '3':
+                    if i == 0 or not (text[i - 1].isalnum() or text[i - 1] == '_'):
+                        state = 1
+                        start_abs = i
+
+            elif state == 1:
+                if char in '47':
+                    state = 2
+                    digit_count = 0
+                else:
+                    i = start_abs
+                    state = 0
+
+            elif state == 2:
+                if char.isdigit():
+                    digit_count += 1
+                    if digit_count == 2:
+                        state = 3
+                else:
+                    i = start_abs
+                    state = 0
+
+            elif state == 3:
+                if char in ' -':
+                    state = 4
+                    digit_count = 0
+                elif char.isdigit():
+                    state = 4
+                    digit_count = 1  # Разделителя нет, это уже первая цифра второго блока
+                else:
+                    i = start_abs
+                    state = 0
+
+            elif state == 4:
+                if char.isdigit():
+                    digit_count += 1
+                    if digit_count == 6:
+                        state = 5
+                else:
+                    i = start_abs
+                    state = 0
+
+            elif state == 5:
+                if char in ' -':
+                    state = 6
+                    digit_count = 0
+                elif char.isdigit():
+                    state = 6
+                    digit_count = 1
+                else:
+                    i = start_abs
+                    state = 0
+
+            elif state == 6:
+                if char.isdigit():
+                    digit_count += 1
+                    if digit_count == 5:
+                        if i == len(text) - 1 or not (text[i + 1].isalnum() or text[i + 1] == '_'):
+                            end_abs = i + 1
+                            matched_string = text[start_abs:end_abs]
+                            length = end_abs - start_abs
+
+                            text_before = text[:start_abs]
+                            line = text_before.count('\n') + 1
+                            col = len(text_before.split('\n')[-1]) + 1
+
+                            matches_data.append({
+                                "string": matched_string,
+                                "line": line,
+                                "col": col,
+                                "length": length,
+                                "start_abs": start_abs,
+                                "end_abs": end_abs
+                            })
+                            state = 0
+                        else:
+                            i = start_abs
+                            state = 0
+                else:
+                    i = start_abs
+                    state = 0
+
+            i += 1  # Переход к следующему символу
+
+        return matches_data
 
 class LanguageProcessorApp(QObject):
     def __init__(self):
@@ -82,7 +180,8 @@ class LanguageProcessorApp(QObject):
         header.setSectionResizeMode(QHeaderView.Stretch)
         self.window.outputTable.itemClicked.connect(self.table_click)
 
-        self.analyzer = RegexAnalyzer()
+        self.regex_analyzer = RegexAnalyzer()
+        self.automaton_analyzer = AmexAutomatonAnalyzer()
 
         self.window.actionAdd.triggered.connect(self.create_file)
         self.window.actionOpen.triggered.connect(self.open_file)
@@ -263,10 +362,13 @@ class LanguageProcessorApp(QObject):
             pattern_index = self.window.regexSelector.currentIndex()
         except AttributeError:
             QMessageBox.critical(self.window, "Ошибка интерфейса",
-                                 "Не найден элемент regexSelector. Добавьте его в Qt Designer.")
+                                 "Не найден элемент regexSelector.")
             return
 
-        matches = self.analyzer.analyze(text, pattern_index)
+        if pattern_index == 2:
+            matches = self.automaton_analyzer.analyze(text)
+        else:
+            matches = self.regex_analyzer.analyze_regex(text, pattern_index)
 
         table = self.window.outputTable
         table.setRowCount(0)
