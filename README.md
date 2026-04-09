@@ -91,7 +91,7 @@
 <img width="1917" height="967" alt="Image" src="https://github.com/user-attachments/assets/ad4f5012-aafc-4a04-8826-252bf85616fc" />
 
 ### Граф автомата
-<img width="1114" height="316" alt="Image" src="https://github.com/user-attachments/assets/48647a4e-bf55-447b-a352-b9a59c6c30c7" />
+<img width="1110" height="242" alt="Image" src="https://github.com/user-attachments/assets/b864c51b-8c0c-4865-ad24-b581f58f4a90" />
 
 ### Тестовой пример автомата (Скриншот)
 <img width="1899" height="977" alt="Image" src="https://github.com/user-attachments/assets/fa495832-af01-4974-a3c3-0eeb2b1bc8c9" />
