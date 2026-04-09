@@ -365,7 +365,7 @@ class LanguageProcessorApp(QObject):
                                  "Не найден элемент regexSelector.")
             return
 
-        if pattern_index == 2:
+        if pattern_index == 3:
             matches = self.automaton_analyzer.analyze(text)
         else:
             matches = self.regex_analyzer.analyze_regex(text, pattern_index)
