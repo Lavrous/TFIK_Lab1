@@ -16,37 +16,6 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout_2">
     <item>
-     <widget class="QComboBox" name="regexSelector">
-      <item>
-       <property name="text">
-        <string>Числа, начинающиеся на 9</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Номера карт Amex (РВ)</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Валюты</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>Номера карт Amex (Автомат)</string>
-       </property>
-      </item>
-     </widget>
-    </item>
-    <item>
-     <widget class="QLabel" name="matchCountLabel">
-      <property name="text">
-       <string>Найдено: 0</string>
-      </property>
-     </widget>
-    </item>
-    <item>
      <layout class="QVBoxLayout" name="verticalLayout">
       <property name="spacing">
        <number>45</number>
@@ -67,10 +36,44 @@
        <number>20</number>
       </property>
       <item>
-       <widget class="QPlainTextEdit" name="codeArea"/>
+       <widget class="QPlainTextEdit" name="codeArea">
+        <property name="autoFillBackground">
+         <bool>false</bool>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">border: 1px solid #b0b0b0;
+border-radius: 6px;
+padding: 5px; </string>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::Shape::Box</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Shadow::Sunken</enum>
+        </property>
+        <property name="lineWidth">
+         <number>2</number>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QTableWidget" name="outputTable">
+        <property name="styleSheet">
+         <string notr="true">background-color: #ffffff;
+border: 1px solid #b0b0b0;
+border-radius: 6px;
+gridline-color: #e0e0e0;
+</string>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::Shape::Box</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Shadow::Plain</enum>
+        </property>
+        <property name="lineWidth">
+         <number>2</number>
+        </property>
         <property name="editTriggers">
          <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
         </property>
@@ -84,7 +87,7 @@
          <number>32</number>
         </attribute>
         <attribute name="horizontalHeaderDefaultSectionSize">
-         <number>181</number>
+         <number>177</number>
         </attribute>
         <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
          <bool>false</bool>
@@ -93,7 +96,7 @@
          <bool>true</bool>
         </attribute>
         <attribute name="verticalHeaderVisible">
-         <bool>true</bool>
+         <bool>false</bool>
         </attribute>
         <attribute name="verticalHeaderShowSortIndicator" stdset="0">
          <bool>false</bool>
@@ -103,17 +106,22 @@
         </attribute>
         <column>
          <property name="text">
-          <string>Найденная подстрока</string>
+          <string>Условный код</string>
          </property>
         </column>
         <column>
          <property name="text">
-          <string>Начальная позиция</string>
+          <string>Тип лексемы</string>
          </property>
         </column>
         <column>
          <property name="text">
-          <string>Длина</string>
+          <string>Лексема</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Местоположение</string>
          </property>
         </column>
        </widget>
