@@ -108,6 +108,8 @@ class SyntaxParser:
         self.tokens = [t for t in tokens if not t['is_error']]
         self.pos = 0
         self.errors = []
+        self.found_semicolon = False
+        self.last_error_pos = -1
 
     def peek(self):
         if self.pos < len(self.tokens): return self.tokens[self.pos]
@@ -118,6 +120,10 @@ class SyntaxParser:
         return self.peek()
 
     def add_error(self, message, token=None):
+        if self.pos == self.last_error_pos:
+            return
+        self.last_error_pos = self.pos
+
         if token:
             loc = f"строка {token['line']}, поз. {token['start']}-{token['end']}"
         else:
@@ -143,8 +149,16 @@ class SyntaxParser:
             self.advance()
             return True
 
-        # Если не совпало
         self.add_error(f"Ожидалось '{expected_lexeme or expected_type}', встречено '{token['lexeme']}'", token)
+        return False
+
+    def match_no_error(self, expected_lexeme=None, expected_type=None):
+        token = self.peek()
+        if not token: return False
+        if (expected_lexeme and token['lexeme'] == expected_lexeme) or \
+                (expected_type and token['type'] == expected_type):
+            self.advance()
+            return True
         return False
 
     def parse(self):
@@ -152,21 +166,40 @@ class SyntaxParser:
             self.add_error("Пустой код или отсутствуют допустимые лексемы")
             return self.errors
 
-        # Пропускаем мусор до 'def' и обрабатываем ; в самом начале
+        junk = []
         while self.peek() and self.peek()['lexeme'] != 'def':
-            if self.peek()['lexeme'] == ';':
-                self.add_error("Символ конца кода (;) не может находиться до объявления функции", self.peek())
-            else:
-                self.add_error("Недопустимый символ/слово вне функции", self.peek())
+            junk.append(self.tokens[self.pos])
             self.advance()
 
-        # Разбор самой функции
+        if junk:
+            first, last = junk[0], junk[-1]
+            self.errors.append({
+                "code": "ERROR",
+                "type": "Синтаксическая ошибка",
+                "lexeme": "Недопустимый код вне функции def (отсутствует def)",
+                "location_str": f"строка {first['line']}, поз. {first['start']}-{last['end']}",
+                "raw_token": first,
+                "is_error": True
+            })
+
         if self.peek():
             self.parse_Start()
 
+        extra = []
         while self.peek():
-            self.add_error("Лишний код после завершения функции", self.peek())
+            extra.append(self.tokens[self.pos])
             self.advance()
+
+        if extra and self.found_semicolon:
+            first, last = extra[0], extra[-1]
+            self.errors.append({
+                "code": "ERROR",
+                "type": "Синтаксическая ошибка",
+                "lexeme": "Лишний код после завершения функции",
+                "location_str": f"строка {first['line']}, поз. {first['start']}-{last['end']}",
+                "raw_token": first,
+                "is_error": True
+            })
 
         return self.errors
 
@@ -174,15 +207,26 @@ class SyntaxParser:
     def parse_Start(self):
         self.match(expected_lexeme='def')
         self.match(expected_type='идентификатор')
+
+        if self.peek() and self.peek()['lexeme'] != '(':
+            if self.peek()['type'] == 'идентификатор':
+                self.add_error(f"Лишний идентификатор '{self.peek()['lexeme']}', ожидался '('", self.peek())
+            else:
+                self.add_error(f"Ожидался '(', встречено '{self.peek()['lexeme']}'", self.peek())
+
+            while self.peek() and self.peek()['lexeme'] != '(':
+                self.advance()
+
         self.match(expected_lexeme='(')
         self.parse_Params()
-
-        while self.peek() and self.peek()['lexeme'] not in [')', '->', ':']:
-            self.advance()
-
         self.match(expected_lexeme=')')
         self.match(expected_lexeme='->')
-        self.match(expected_lexeme='int')
+
+        if not self.match_no_error(expected_lexeme='int'):
+            self.add_error("Ожидался тип 'int'", self.peek())
+            while self.peek() and self.peek()['lexeme'] != ':':
+                self.advance()
+
         self.match(expected_lexeme=':')
         self.parse_Body()
 
@@ -190,27 +234,54 @@ class SyntaxParser:
     def parse_Params(self):
         if self.peek() and self.peek()['lexeme'] != ')':
             self.parse_Param()
-            self.parse_Params_prime()
-
-    # 3. Params’ -> , Param Params’ | ε
-    def parse_Params_prime(self):
-        while self.peek() and self.peek()['lexeme'] == ',':
-            self.advance()  # съели запятую
-            self.parse_Param()
+            while self.peek() and self.peek()['lexeme'] == ',':
+                self.advance()
+                self.parse_Param()
 
     # 4. Param -> id: Type
     def parse_Param(self):
-        if self.match(expected_type='идентификатор'):
-            self.match(expected_lexeme=':')
-            self.match(expected_lexeme='int')
-        else:
+        has_error = False
+        if not self.match_no_error(expected_type='идентификатор'):
+            self.add_error("Ожидалось имя параметра (идентификатор)", self.peek())
+            has_error = True
+        elif not self.match_no_error(expected_lexeme=':'):
+            self.add_error("Ожидалось ':' после имени параметра", self.peek())
+            has_error = True
+        elif not self.match_no_error(expected_lexeme='int'):
+            self.add_error("Ожидался тип 'int'", self.peek())
+            has_error = True
+
+        if has_error:
+            self.sync_param()
+
+    def sync_param(self):
+        bracket_count = 0
+        while self.peek():
+            lex = self.peek()['lexeme']
+            if lex == '(':
+                bracket_count += 1
+            elif lex == ')':
+                if bracket_count > 0:
+                    bracket_count -= 1
+                else:
+                    break
+            elif lex == ',' and bracket_count == 0:
+                break
             self.advance()
 
-    # 5. Body -> return Expr
+    # 5. Body -> return Expr ;
     def parse_Body(self):
-        if self.match(expected_lexeme='return'):
-            self.parse_Expr()
-            self.match(expected_lexeme=';')
+        self.match(expected_lexeme='return')
+        self.parse_Expr()
+
+        while self.peek() and self.peek()['lexeme'] == ')':
+            self.add_error("Лишняя закрывающая скобка ')'", self.peek())
+            self.advance()
+
+        if self.match_no_error(expected_lexeme=';'):
+            self.found_semicolon = True
+        else:
+            self.add_error("Ожидалась ';' в конце функции", self.peek())
 
     # 6. Expr -> Term Expr’
     def parse_Expr(self):
@@ -238,7 +309,7 @@ class SyntaxParser:
     def parse_Factor(self):
         token = self.peek()
         if not token:
-            self.add_error("Ожидалось выражение (идентификатор или скобка), но код закончился")
+            self.add_error("Ожидалось выражение, но код закончился")
             return
 
         if token['type'] == 'идентификатор':
@@ -437,7 +508,8 @@ class LanguageProcessorApp(QObject):
 
         all_tokens = self.scanner.analyze(code_text)
 
-        lexical_errors = [t for t in all_tokens if t['is_error']]
+        first_lex = next((t for t in all_tokens if t['is_error']), None)
+        lexical_errors = [first_lex] if first_lex else []
 
         parser = SyntaxParser(all_tokens)
         syntax_errors = parser.parse()
