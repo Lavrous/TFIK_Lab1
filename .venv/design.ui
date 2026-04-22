@@ -178,6 +178,7 @@ gridline-color: #e0e0e0;
      <string>Пуск</string>
     </property>
     <addaction name="actionGo"/>
+    <addaction name="action_AST"/>
    </widget>
    <widget class="QMenu" name="menu_5">
     <property name="title">
@@ -430,6 +431,11 @@ gridline-color: #e0e0e0;
    </property>
    <property name="iconVisibleInMenu">
     <bool>false</bool>
+   </property>
+  </action>
+  <action name="action_AST">
+   <property name="text">
+    <string>Показать AST</string>
    </property>
   </action>
  </widget>

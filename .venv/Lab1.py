@@ -1,5 +1,8 @@
 import sys
 import os
+import platform
+import subprocess
+import json
 import resources_rc
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QMessageBox, QDialog,
@@ -15,6 +18,21 @@ def resource_path(relative_path):
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
+
+
+class SymbolTable:
+    def __init__(self):
+        self.symbols = {}
+
+    def declare(self, name, var_type):
+        if name in self.symbols:
+            return False
+        self.symbols[name] = var_type
+        return True
+
+    def lookup(self, name):
+        return self.symbols.get(name, None)
+
 
 class LexicalAnalyzer:
     def __init__(self):
@@ -108,8 +126,10 @@ class SyntaxParser:
         self.tokens = [t for t in tokens if not t['is_error']]
         self.pos = 0
         self.errors = []
+        self.semantic_errors = []  # Отдельный список для семантики
         self.found_semicolon = False
         self.last_error_pos = -1
+        self.symtab = SymbolTable()  # Создаем таблицу символов
 
     def peek(self):
         if self.pos < len(self.tokens): return self.tokens[self.pos]
@@ -123,15 +143,21 @@ class SyntaxParser:
         if self.pos == self.last_error_pos:
             return
         self.last_error_pos = self.pos
-
-        if token:
-            loc = f"строка {token['line']}, поз. {token['start']}-{token['end']}"
-        else:
-            loc = "Конец файла"
-
+        loc = f"строка {token['line']}, поз. {token['start']}-{token['end']}" if token else "Конец файла"
         self.errors.append({
             "code": "ERROR",
             "type": "Синтаксическая ошибка",
+            "lexeme": message,
+            "location_str": loc,
+            "raw_token": token,
+            "is_error": True
+        })
+
+    def add_semantic_error(self, message, token):
+        loc = f"строка {token['line']}, поз. {token['start']}-{token['end']}"
+        self.semantic_errors.append({
+            "code": "ERROR",
+            "type": "Семантическая ошибка",
             "lexeme": message,
             "location_str": loc,
             "raw_token": token,
@@ -142,29 +168,31 @@ class SyntaxParser:
         token = self.peek()
         if not token:
             self.add_error(f"Неожиданный конец кода. Ожидалось: '{expected_lexeme or expected_type}'")
-            return False
+            return None
 
         if (expected_lexeme and token['lexeme'] == expected_lexeme) or \
                 (expected_type and token['type'] == expected_type):
             self.advance()
-            return True
+            return token
 
         self.add_error(f"Ожидалось '{expected_lexeme or expected_type}', встречено '{token['lexeme']}'", token)
-        return False
+        return None
 
     def match_no_error(self, expected_lexeme=None, expected_type=None):
         token = self.peek()
-        if not token: return False
+        if not token: return None
         if (expected_lexeme and token['lexeme'] == expected_lexeme) or \
                 (expected_type and token['type'] == expected_type):
             self.advance()
-            return True
-        return False
+            return token
+        return None
 
     def parse(self):
         if not self.tokens:
             self.add_error("Пустой код или отсутствуют допустимые лексемы")
-            return self.errors
+            return None, self.errors + self.semantic_errors
+
+        ast_root = None
 
         junk = []
         while self.peek() and self.peek()['lexeme'] != 'def':
@@ -174,16 +202,14 @@ class SyntaxParser:
         if junk:
             first, last = junk[0], junk[-1]
             self.errors.append({
-                "code": "ERROR",
-                "type": "Синтаксическая ошибка",
+                "code": "ERROR", "type": "Синтаксическая ошибка",
                 "lexeme": "Недопустимый код вне функции def (отсутствует def)",
                 "location_str": f"строка {first['line']}, поз. {first['start']}-{last['end']}",
-                "raw_token": first,
-                "is_error": True
+                "raw_token": first, "is_error": True
             })
 
         if self.peek():
-            self.parse_Start()
+            ast_root = self.parse_Start()
 
         extra = []
         while self.peek():
@@ -193,59 +219,83 @@ class SyntaxParser:
         if extra and self.found_semicolon:
             first, last = extra[0], extra[-1]
             self.errors.append({
-                "code": "ERROR",
-                "type": "Синтаксическая ошибка",
+                "code": "ERROR", "type": "Синтаксическая ошибка",
                 "lexeme": "Лишний код после завершения функции",
                 "location_str": f"строка {first['line']}, поз. {first['start']}-{last['end']}",
-                "raw_token": first,
-                "is_error": True
+                "raw_token": first, "is_error": True
             })
 
-        return self.errors
+        return ast_root, self.errors + self.semantic_errors
 
     # 1. Start -> def id (Params) -> Type : Body
     def parse_Start(self):
         self.match(expected_lexeme='def')
+
+        name_token = self.peek()
+        func_name = name_token['lexeme'] if name_token and name_token['type'] == 'идентификатор' else "<unknown>"
         self.match(expected_type='идентификатор')
 
-        if self.peek() and self.peek()['lexeme'] != '(':
-            if self.peek()['type'] == 'идентификатор':
-                self.add_error(f"Лишний идентификатор '{self.peek()['lexeme']}', ожидался '('", self.peek())
-            else:
-                self.add_error(f"Ожидался '(', встречено '{self.peek()['lexeme']}'", self.peek())
+        root = AstNode(f"FunctionDeclNode\ndef: {func_name}")
 
+        if self.peek() and self.peek()['lexeme'] != '(':
+            self.add_error(f"Ожидался '(', встречено '{self.peek()['lexeme']}'", self.peek())
             while self.peek() and self.peek()['lexeme'] != '(':
                 self.advance()
 
         self.match(expected_lexeme='(')
-        self.parse_Params()
+
+        arg_node = AstNode("ArgNode")
+        params = self.parse_Params()
+        for p in params:
+            arg_node.add_child(p)
+        root.add_child(arg_node)
+
         self.match(expected_lexeme=')')
         self.match(expected_lexeme='->')
 
-        if not self.match_no_error(expected_lexeme='int'):
+        ret_type_token = self.match_no_error(expected_lexeme='int')
+        if not ret_type_token:
             self.add_error("Ожидался тип 'int'", self.peek())
             while self.peek() and self.peek()['lexeme'] != ':':
                 self.advance()
 
+        ret_type_name = ret_type_token['lexeme'] if ret_type_token else "unknown"
+        ret_node = AstNode(f"ReturnTypeNode\nname: {ret_type_name}")
+
         self.match(expected_lexeme=':')
-        self.parse_Body()
+
+        body_node = AstNode("statement sequence")
+        body = self.parse_Body()
+        body_node.add_child(body)
+        root.add_child(body_node)
+
+        # Возвращаемый тип добавляем в конец корня, как на схеме
+        root.add_child(ret_node)
+
+        return root
 
     # 2. Params -> Param Params’ | ε
     def parse_Params(self):
+        parsed_params = []
         if self.peek() and self.peek()['lexeme'] != ')':
-            self.parse_Param()
+            p = self.parse_Param()
+            if p: parsed_params.append(p)
             while self.peek() and self.peek()['lexeme'] == ',':
                 self.advance()
-                self.parse_Param()
+                p = self.parse_Param()
+                if p: parsed_params.append(p)
+        return parsed_params
 
     # 4. Param -> id: Type
     def parse_Param(self):
         has_error = False
+        id_token = self.peek()
+
         if not self.match_no_error(expected_type='идентификатор'):
-            self.add_error("Ожидалось имя параметра (идентификатор)", self.peek())
+            self.add_error("Ожидалось имя параметра", self.peek())
             has_error = True
         elif not self.match_no_error(expected_lexeme=':'):
-            self.add_error("Ожидалось ':' после имени параметра", self.peek())
+            self.add_error("Ожидалось ':'", self.peek())
             has_error = True
         elif not self.match_no_error(expected_lexeme='int'):
             self.add_error("Ожидался тип 'int'", self.peek())
@@ -253,6 +303,14 @@ class SyntaxParser:
 
         if has_error:
             self.sync_param()
+            return None
+
+        # --- СЕМАНТИЧЕСКОЕ ПРАВИЛО 1: Проверка уникальности имени ---
+        param_name = id_token['lexeme']
+        if not self.symtab.declare(param_name, 'int'):
+            self.add_semantic_error(f"Повторное объявление идентификатора '{param_name}'", id_token)
+
+        return AstNode(f"IntNode\nname: {param_name}")
 
     def sync_param(self):
         bracket_count = 0
@@ -272,7 +330,10 @@ class SyntaxParser:
     # 5. Body -> return Expr ;
     def parse_Body(self):
         self.match(expected_lexeme='return')
-        self.parse_Expr()
+
+        ret_node = AstNode("ReturnNode")
+        expr_node = self.parse_Expr()
+        ret_node.add_child(expr_node)
 
         while self.peek() and self.peek()['lexeme'] == ')':
             self.add_error("Лишняя закрывающая скобка ')'", self.peek())
@@ -283,45 +344,74 @@ class SyntaxParser:
         else:
             self.add_error("Ожидалась ';' в конце функции", self.peek())
 
+        return ret_node
+
+    # Переписанные методы выражений: теперь они собирают левостороннее дерево!
+
     # 6. Expr -> Term Expr’
     def parse_Expr(self):
-        self.parse_Term()
-        self.parse_Expr_prime()
+        left = self.parse_Term()
+        return self.parse_Expr_prime(left)
 
     # 7. Expr’ -> + Term Expr’ | ε
-    def parse_Expr_prime(self):
+    def parse_Expr_prime(self, left):
         while self.peek() and self.peek()['lexeme'] == '+':
+            op_token = self.peek()
             self.advance()
-            self.parse_Term()
+            right = self.parse_Term()
+
+            new_node = AstNode(f"BinOpNode\nop: {op_token['lexeme']}")
+            new_node.add_child(left)
+            new_node.add_child(right)
+            left = new_node  # Поднимаем корень выше
+
+        return left
 
     # 8. Term -> Factor Term’
     def parse_Term(self):
-        self.parse_Factor()
-        self.parse_Term_prime()
+        left = self.parse_Factor()
+        return self.parse_Term_prime(left)
 
     # 9. Term’ -> * Factor Term’ | ε
-    def parse_Term_prime(self):
+    def parse_Term_prime(self, left):
         while self.peek() and self.peek()['lexeme'] == '*':
+            op_token = self.peek()
             self.advance()
-            self.parse_Factor()
+            right = self.parse_Factor()
+
+            new_node = AstNode(f"BinOpNode\nop: {op_token['lexeme']}")
+            new_node.add_child(left)
+            new_node.add_child(right)
+            left = new_node
+
+        return left
 
     # 10. Factor -> id | (Expr)
     def parse_Factor(self):
         token = self.peek()
         if not token:
             self.add_error("Ожидалось выражение, но код закончился")
-            return
+            return None
 
         if token['type'] == 'идентификатор':
+            var_name = token['lexeme']
+
+            if not self.symtab.lookup(var_name):
+                self.add_semantic_error(f"Использование необъявленной переменной '{var_name}'", token)
+
             self.advance()
+            return AstNode(f"IntNode\nname: {var_name}")
+
         elif token['lexeme'] == '(':
             self.advance()
-            self.parse_Expr()
+            expr_node = self.parse_Expr()
             self.match(expected_lexeme=')')
+            return expr_node
+
         else:
             self.add_error(f"Ожидался идентификатор или '(', встречено '{token['lexeme']}'", token)
             self.advance()
-
+            return None
 
 class LanguageProcessorApp(QObject):
     def __init__(self):
