@@ -34,6 +34,42 @@ class SymbolTable:
         return self.symbols.get(name, None)
 
 
+class AstNode:
+    def __init__(self, label):
+        self.label = label
+        self.children = []
+
+    def add_child(self, child):
+        if child is not None:
+            self.children.append(child)
+
+    def to_tree_string(self, indent="", is_last=True, is_root=True):
+        result = ""
+
+        if is_root:
+            marker = ""
+            child_indent = ""
+        else:
+            marker = "└── " if is_last else "├── "
+            child_indent = indent + ("    " if is_last else "│   ")
+
+        lines = self.label.split('\n')
+
+        result += f"{indent}{marker}{lines[0]}\n"
+
+        for line in lines[1:]:
+            attr_marker = "├── " if len(self.children) > 0 else "└── "
+            if is_root:
+                result += f"{attr_marker}{line}\n"
+            else:
+                result += f"{child_indent}{attr_marker}{line}\n"
+
+        for i, child in enumerate(self.children):
+            child_is_last = (i == len(self.children) - 1)
+            result += child.to_tree_string(child_indent, child_is_last, is_root=False)
+
+        return result
+
 class LexicalAnalyzer:
     def __init__(self):
         self.keywords = {"def": 2, "return": 3, "int": 4}
@@ -268,8 +304,6 @@ class SyntaxParser:
         body = self.parse_Body()
         body_node.add_child(body)
         root.add_child(body_node)
-
-        # Возвращаемый тип добавляем в конец корня, как на схеме
         root.add_child(ret_node)
 
         return root
@@ -597,12 +631,19 @@ class LanguageProcessorApp(QObject):
         table.setRowCount(0)
 
         all_tokens = self.scanner.analyze(code_text)
-
         first_lex = next((t for t in all_tokens if t['is_error']), None)
         lexical_errors = [first_lex] if first_lex else []
 
         parser = SyntaxParser(all_tokens)
-        syntax_errors = parser.parse()
+        ast_root, sync_and_sem_errors = parser.parse()
+
+        if ast_root:
+            tree_str = ast_root.to_tree_string()
+            ast_file_path = os.path.join(os.getcwd(), "AST.txt")
+                # Создаем/перезаписываем файл
+            with open(ast_file_path, "w", encoding="utf-8") as f:
+                f.write(tree_str)
+            os.startfile(ast_file_path)
 
         all_errors = []
         for err in lexical_errors:
@@ -615,11 +656,11 @@ class LanguageProcessorApp(QObject):
                 "is_error": True
             })
 
-        all_errors.extend(syntax_errors)
+        all_errors.extend(sync_and_sem_errors)
 
-        # Если ошибок нет
         if not all_errors:
-            QMessageBox.information(self.window, "Результат", "Код написан верно! Ошибок не найдено.")
+            QMessageBox.information(self.window, "Результат",
+                                    "Код написан верно! Ошибок не найдено.\nДерево AST открыто в текстовом редакторе.")
             return
 
         error_color = QColor(255, 200, 200)
