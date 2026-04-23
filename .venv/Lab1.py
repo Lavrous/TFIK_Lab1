@@ -338,8 +338,6 @@ class SyntaxParser:
         if has_error:
             self.sync_param()
             return None
-
-        # --- СЕМАНТИЧЕСКОЕ ПРАВИЛО 1: Проверка уникальности имени ---
         param_name = id_token['lexeme']
         if not self.symtab.declare(param_name, 'int'):
             self.add_semantic_error(f"Повторное объявление идентификатора '{param_name}'", id_token)
@@ -380,8 +378,6 @@ class SyntaxParser:
 
         return ret_node
 
-    # Переписанные методы выражений: теперь они собирают левостороннее дерево!
-
     # 6. Expr -> Term Expr’
     def parse_Expr(self):
         left = self.parse_Term()
@@ -397,7 +393,7 @@ class SyntaxParser:
             new_node = AstNode(f"BinOpNode\nop: {op_token['lexeme']}")
             new_node.add_child(left)
             new_node.add_child(right)
-            left = new_node  # Поднимаем корень выше
+            left = new_node
 
         return left
 
