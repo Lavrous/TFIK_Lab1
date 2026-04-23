@@ -629,21 +629,12 @@ class LanguageProcessorApp(QObject):
         code_text = self.window.codeArea.toPlainText()
         table = self.window.outputTable
         table.setRowCount(0)
-
         all_tokens = self.scanner.analyze(code_text)
         first_lex = next((t for t in all_tokens if t['is_error']), None)
         lexical_errors = [first_lex] if first_lex else []
 
         parser = SyntaxParser(all_tokens)
         ast_root, sync_and_sem_errors = parser.parse()
-
-        if ast_root:
-            tree_str = ast_root.to_tree_string()
-            ast_file_path = os.path.join(os.getcwd(), "AST.txt")
-                # Создаем/перезаписываем файл
-            with open(ast_file_path, "w", encoding="utf-8") as f:
-                f.write(tree_str)
-            os.startfile(ast_file_path)
 
         all_errors = []
         for err in lexical_errors:
@@ -659,6 +650,15 @@ class LanguageProcessorApp(QObject):
         all_errors.extend(sync_and_sem_errors)
 
         if not all_errors:
+            if ast_root:
+                tree_str = ast_root.to_tree_string()
+                ast_file_path = os.path.join(os.getcwd(), "AST.txt")
+
+                with open(ast_file_path, "w", encoding="utf-8") as f:
+                    f.write(tree_str)
+
+                    os.startfile(ast_file_path)
+
             QMessageBox.information(self.window, "Результат",
                                     "Код написан верно! Ошибок не найдено.\nДерево AST открыто в текстовом редакторе.")
             return
