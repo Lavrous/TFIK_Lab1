@@ -75,7 +75,7 @@ class LexicalAnalyzer:
                 tokens.append(self.make_token("num", lexeme, line, start_pos, pos - 1))
                 continue
 
-            # Операторы из 2 символов (**, //)
+            # Операторы из двух символов символов (**, //)
             if i + 1 < n:
                 two_char = text[i:i + 2]
                 if two_char in ['**', '//']:
@@ -84,7 +84,7 @@ class LexicalAnalyzer:
                     pos += 2
                     continue
 
-            # Операторы из 1 символа и скобки
+            # Операторы из одного символа и скобки
             if char in ['+', '-', '*', '/', '%']:
                 tokens.append(self.make_token("op", char, line, start_pos, start_pos))
                 i += 1
