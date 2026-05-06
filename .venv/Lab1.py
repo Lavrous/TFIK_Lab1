@@ -9,12 +9,14 @@ from PySide6.QtGui import QTextCursor, QColor
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, QIODevice, QObject, QEvent, Qt
 
+
 def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
+
 
 class LexicalAnalyzer:
     def __init__(self):
@@ -86,7 +88,9 @@ class LexicalAnalyzer:
                     lexeme = ""
                     state = 0
                 else:
-                    tokens.append(self.make_token("ERROR", "Лексическая ошибка (ожидалось >)", lexeme, line, start_pos, pos - 1, True))
+                    tokens.append(
+                        self.make_token("ERROR", "Лексическая ошибка (ожидалось >)", lexeme, line, start_pos, pos - 1,
+                                        True))
                     lexeme = ""
                     state = 0
                     i -= 1
@@ -105,6 +109,7 @@ class LexicalAnalyzer:
 
 class SyntaxParser:
     def __init__(self, tokens):
+        self.all_tokens = tokens
         self.tokens = [t for t in tokens if not t['is_error']]
         self.pos = 0
         self.errors = []
@@ -120,8 +125,11 @@ class SyntaxParser:
         return self.peek()
 
     def add_error(self, message, token=None):
-        if self.pos == self.last_error_pos:
-            return
+        if self.errors:
+            last_err = self.errors[-1]
+            if last_err['lexeme'] == message and self.last_error_pos == self.pos:
+                return
+
         self.last_error_pos = self.pos
 
         if token:
@@ -165,25 +173,7 @@ class SyntaxParser:
         if not self.tokens:
             self.add_error("Пустой код или отсутствуют допустимые лексемы")
             return self.errors
-
-        junk = []
-        while self.peek() and self.peek()['lexeme'] != 'def':
-            junk.append(self.tokens[self.pos])
-            self.advance()
-
-        if junk:
-            first, last = junk[0], junk[-1]
-            self.errors.append({
-                "code": "ERROR",
-                "type": "Синтаксическая ошибка",
-                "lexeme": "Недопустимый код вне функции def (отсутствует def)",
-                "location_str": f"строка {first['line']}, поз. {first['start']}-{last['end']}",
-                "raw_token": first,
-                "is_error": True
-            })
-
-        if self.peek():
-            self.parse_Start()
+        self.parse_Start()
 
         extra = []
         while self.peek():
@@ -205,26 +195,75 @@ class SyntaxParser:
 
     # 1. Start -> def id (Params) -> Type : Body
     def parse_Start(self):
-        self.match(expected_lexeme='def')
-        self.match(expected_type='идентификатор')
-
-        if self.peek() and self.peek()['lexeme'] != '(':
-            if self.peek()['type'] == 'идентификатор':
-                self.add_error(f"Лишний идентификатор '{self.peek()['lexeme']}', ожидался '('", self.peek())
+        token = self.peek()
+        if token and token['lexeme'] != 'def':
+            if token['lexeme'] == ';':
+                self.add_error("Символ конца функции ';' до её начала", token)
             else:
-                self.add_error(f"Ожидался '(', встречено '{self.peek()['lexeme']}'", self.peek())
+                self.add_error("Ожидалось ключевое слово 'def'", token)
+            while self.peek():
+                if self.peek()['lexeme'] == 'def':
+                    self.advance()
+                    break
 
+                if self.peek()['type'] == 'идентификатор':
+                    if self.pos + 1 < len(self.tokens) and self.tokens[self.pos + 1]['lexeme'] == '(':
+                        break
+                    if self.pos + 2 < len(self.tokens) and self.tokens[self.pos + 1]['type'] == 'идентификатор' and \
+                            self.tokens[self.pos + 2]['lexeme'] == '(':
+                        tok1 = self.peek()
+                        tok2 = self.tokens[self.pos + 1]
+                        if tok1 in self.all_tokens and tok2 in self.all_tokens:
+                            idx1 = self.all_tokens.index(tok1)
+                            idx2 = self.all_tokens.index(tok2)
+                            if any(t['is_error'] for t in self.all_tokens[idx1+1:idx2]):
+                                break
+                self.advance()
+        elif token and token['lexeme'] == 'def':
+            self.advance()
+        else:
+            self.add_error("Пустой код. Ожидалось 'def'")
+            return
+
+        if not self.match_no_error(expected_type='идентификатор'):
+            self.add_error("Ожидалось имя функции (идентификатор)", self.peek())
             while self.peek() and self.peek()['lexeme'] != '(':
                 self.advance()
+        else:
+            if self.peek():
+                if self.peek()['type'] == 'идентификатор':
+                    self.add_error("Ошибка в имени функции (возможно, недопустимые символы)", self.peek())
+                    while self.peek() and self.peek()['lexeme'] != '(':
+                        self.advance()
+                elif self.peek()['lexeme'] == '(' and self.pos + 1 < len(self.tokens):
+                    next_tok = self.tokens[self.pos + 1]
+                    if next_tok['type'] == 'идентификатор' and self.pos + 2 < len(self.tokens) and \
+                            self.tokens[self.pos + 2]['lexeme'] == '(':
+                        self.add_error("Ошибка в имени функции (недопустимый символ '(')", self.peek())
+                        self.advance()
+                        self.advance()
 
         self.match(expected_lexeme='(')
         self.parse_Params()
         self.match(expected_lexeme=')')
-        self.match(expected_lexeme='->')
+        if not self.match_no_error(expected_lexeme='->'):
+            err_tok = self.peek()
+            if err_tok in self.all_tokens:
+                idx = self.all_tokens.index(err_tok)
+                for i in range(idx - 1, -1, -1):
+                    if not self.all_tokens[i]['is_error']:
+                        break
+                    if self.all_tokens[i]['lexeme'] == '-':
+                        err_tok = self.all_tokens[i]
+                        break
+
+            self.add_error("Ожидалось '->'", err_tok)
+            while self.peek() and self.peek()['lexeme'] not in ['int', ':']:
+                self.advance()
 
         if not self.match_no_error(expected_lexeme='int'):
             self.add_error("Ожидался тип 'int'", self.peek())
-            while self.peek() and self.peek()['lexeme'] != ':':
+            while self.peek() and self.peek()['lexeme'] not in [':', 'return']:
                 self.advance()
 
         self.match(expected_lexeme=':')
@@ -250,29 +289,37 @@ class SyntaxParser:
         elif not self.match_no_error(expected_lexeme='int'):
             self.add_error("Ожидался тип 'int'", self.peek())
             has_error = True
-
         if has_error:
             self.sync_param()
 
     def sync_param(self):
-        bracket_count = 0
         while self.peek():
             lex = self.peek()['lexeme']
-            if lex == '(':
-                bracket_count += 1
-            elif lex == ')':
-                if bracket_count > 0:
-                    bracket_count -= 1
-                else:
-                    break
-            elif lex == ',' and bracket_count == 0:
+            if lex in [',', ')']:
                 break
             self.advance()
 
     # 5. Body -> return Expr ;
     def parse_Body(self):
-        self.match(expected_lexeme='return')
+        if not self.match_no_error(expected_lexeme='return'):
+            self.add_error("Ожидалось ключевое слово 'return'", self.peek())
+            while self.peek():
+                if self.peek()['lexeme'] == '(':
+                    break
+                if self.pos < len(self.tokens) - 1:
+                    next_lex = self.tokens[self.pos + 1]['lexeme']
+                    if self.peek()['type'] == 'идентификатор' and next_lex in ['+', '*', ')', ';']:
+                        break
+                self.advance()
+
         self.parse_Expr()
+
+        has_garbage = False
+        while self.peek() and self.peek()['lexeme'] not in [';', ')']:
+            if not has_garbage:
+                self.add_error(f"Пропущен оператор или неожиданный токен '{self.peek()['lexeme']}'", self.peek())
+                has_garbage = True
+            self.advance()
 
         while self.peek() and self.peek()['lexeme'] == ')':
             self.add_error("Лишняя закрывающая скобка ')'", self.peek())
@@ -478,16 +525,6 @@ class LanguageProcessorApp(QObject):
             <li><b>Сохранить как:</b> Позволяет сохранить текущий текст в новый файл.</li>
             <li><b>Выход:</b> Закрывает программу с предупреждением</li>
         </ul>
-        <h3>Меню "Правка"</h3>
-        <ul>
-            <li><b>Отменить (Ctrl+Z):</b> Отменяет последнее действие в активном поле.</li>
-            <li><b>Повторить (Ctrl+Y):</b> Повторяет отмененное действие.</li>
-            <li><b>Вырезать (Ctrl+X):</b> Удаляет выделенный текст и помещает его в буфер обмена.</li>
-            <li><b>Копировать (Ctrl+C):</b> Помещает выделенный текст в буфер обмена.</li>
-            <li><b>Вставить (Ctrl+V):</b> Вставляет текст из буфера обмена.</li>
-            <li><b>Удалить (Ctrl+D):</b> Удаляет выделенный текст без сохранения в буфер.</li>
-            <li><b>Выделить всё (Ctrl+A):</b> Выделяет весь текст в активном поле.</li>
-        </ul>
         """
         browser.setHtml(html_content)
         layout.addWidget(browser)
@@ -527,7 +564,6 @@ class LanguageProcessorApp(QObject):
 
         all_errors.extend(syntax_errors)
 
-        # Если ошибок нет
         if not all_errors:
             QMessageBox.information(self.window, "Результат", "Код написан верно! Ошибок не найдено.")
             return
