@@ -162,10 +162,10 @@ class SyntaxParser:
         self.tokens = [t for t in tokens if not t['is_error']]
         self.pos = 0
         self.errors = []
-        self.semantic_errors = []  # Отдельный список для семантики
+        self.semantic_errors = []
         self.found_semicolon = False
         self.last_error_pos = -1
-        self.symtab = SymbolTable()  # Создаем таблицу символов
+        self.symtab = SymbolTable()
 
     def peek(self):
         if self.pos < len(self.tokens): return self.tokens[self.pos]
