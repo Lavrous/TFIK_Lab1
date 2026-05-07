@@ -51,18 +51,18 @@ def multiply(x: int, y: int) -> int:
 На основе реализованного парсера составлена следующая контекстно-свободная грамматика в классической форме Бэкуса-Наура (БНФ). 
 
 ```bnf
-<Start>   ::= def <id> ( <Params> ) -> int : <Body>
-<Params>  ::= <Param> <Params'> | ε
-<Params'> ::= , <Param> <Params'> | ε
-<Param>   ::= <id> : int
-<Body>    ::= return <Expr> ;
+<Start>   ::= "def" <id> "(" <Params> ")" "->" "int" ":" <Body>
+<Params>  ::= <Param> <Params'> | "ε"
+<Params'> ::= "," <Param> <Params'> | "ε"
+<Param>   ::= <id> ":" "int"
+<Body>    ::= "return" <Expr> ";"
 <Expr>    ::= <Term> <Expr'>
-<Expr'>   ::= + <Term> <Expr'> | ε
+<Expr'>   ::= "+" <Term> <Expr'> | "ε"
 <Term>    ::= <Factor> <Term'>
-<Term'>   ::= * <Factor> <Term'> | ε
-<Factor>  ::= <id> | ( <Expr> )
+<Term'>   ::= "*" <Factor> <Term'> | "ε"
+<Factor>  ::= <id> | "(" <Expr> ")"
 <id>      ::= <Letter> <IdTail> | "_" <IdTail>
-<IdTail>  ::= <Letter> <IdTail> | <Digit> <IdTail> | "_" <IdTail> | ε
+<IdTail>  ::= <Letter> <IdTail> | <Digit> <IdTail> | "_" <IdTail> | "ε"
 ```
 
 Где базовые символы (терминалы лексического уровня) определяются следующим образом:
@@ -76,7 +76,7 @@ def multiply(x: int, y: int) -> int:
   `Z = <Start>`
 
 * **Vt** — Множество терминальных символов:
-  `Vt = { def, return, int, a, b, ..., z, A, B, ..., Z, 0, 1, ..., 9, (, ), ->, :, ,, ;, +, *, _ }`
+  `Vt = { a, b, ..., z, A, B, ..., Z, 0, 1, ..., 9, (, ), -, >, :, ,, ;, +, *, _ }`
 
 * **Vn** — Множество нетерминальных символов:
   `Vn = { <Start>, <Params>, <Params'>, <Param>, <Body>, <Expr>, <Expr'>, <Term>, <Term'>, <Factor>, <id>, <id_tail> }`
