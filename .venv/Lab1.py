@@ -258,7 +258,7 @@ class SyntaxParser:
                         break
 
             self.add_error("Ожидалось '->'", err_tok)
-            while self.peek() and self.peek()['lexeme'] not in ['int', ':']:
+            while self.peek() and self.peek()['lexeme'] not in ['int', ':', 'return']:
                 self.advance()
 
         if not self.match_no_error(expected_lexeme='int'):
