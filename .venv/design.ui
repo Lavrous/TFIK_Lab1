@@ -165,13 +165,12 @@ gridline-color: #e0e0e0;
     <property name="title">
      <string>Текст</string>
     </property>
-    <addaction name="action_15"/>
-    <addaction name="action_16"/>
-    <addaction name="action_17"/>
-    <addaction name="action_18"/>
-    <addaction name="action_19"/>
-    <addaction name="action_20"/>
-    <addaction name="action_21"/>
+    <addaction name="actionTask"/>
+    <addaction name="actionGrammar"/>
+    <addaction name="actionGrammarClass"/>
+    <addaction name="actionMethod"/>
+    <addaction name="actionExample"/>
+    <addaction name="actionLit"/>
    </widget>
    <widget class="QMenu" name="menuGo">
     <property name="title">
@@ -187,11 +186,19 @@ gridline-color: #e0e0e0;
     <addaction name="actionNote"/>
     <addaction name="actionAbout"/>
    </widget>
+   <widget class="QMenu" name="menuAntler">
+    <property name="title">
+     <string>Antler</string>
+    </property>
+    <addaction name="actionAntLex"/>
+    <addaction name="actionAntPars"/>
+   </widget>
    <addaction name="menu"/>
    <addaction name="menu_2"/>
    <addaction name="menu_3"/>
    <addaction name="menuGo"/>
    <addaction name="menu_5"/>
+   <addaction name="menuAntler"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
@@ -380,7 +387,7 @@ gridline-color: #e0e0e0;
     <bool>false</bool>
    </property>
   </action>
-  <action name="action_15">
+  <action name="actionTask">
    <property name="text">
     <string>Постановка задачи</string>
    </property>
@@ -388,34 +395,29 @@ gridline-color: #e0e0e0;
     <bool>false</bool>
    </property>
   </action>
-  <action name="action_16">
+  <action name="actionGrammar">
    <property name="text">
     <string>Грамматика</string>
    </property>
   </action>
-  <action name="action_17">
+  <action name="actionGrammarClass">
    <property name="text">
     <string>Классификация граматики</string>
    </property>
   </action>
-  <action name="action_18">
+  <action name="actionMethod">
    <property name="text">
     <string>Метод анализа</string>
    </property>
   </action>
-  <action name="action_19">
+  <action name="actionExample">
    <property name="text">
     <string>Тестовый пример</string>
    </property>
   </action>
-  <action name="action_20">
+  <action name="actionLit">
    <property name="text">
     <string>Список литературы</string>
-   </property>
-  </action>
-  <action name="action_21">
-   <property name="text">
-    <string>Исходный код программы</string>
    </property>
   </action>
   <action name="actionGo">
@@ -431,6 +433,16 @@ gridline-color: #e0e0e0;
    </property>
    <property name="iconVisibleInMenu">
     <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionAntLex">
+   <property name="text">
+    <string>Пример лексера</string>
+   </property>
+  </action>
+  <action name="actionAntPars">
+   <property name="text">
+    <string>Пример парсера</string>
    </property>
   </action>
   <action name="action_AST">

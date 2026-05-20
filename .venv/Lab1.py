@@ -75,7 +75,7 @@ class LexicalAnalyzer:
                 tokens.append(self.make_token("num", lexeme, line, start_pos, pos - 1))
                 continue
 
-            # Операторы из двух символов символов (**, //)
+            # Операторы из 2 символов (**, //)
             if i + 1 < n:
                 two_char = text[i:i + 2]
                 if two_char in ['**', '//']:
@@ -84,7 +84,7 @@ class LexicalAnalyzer:
                     pos += 2
                     continue
 
-            # Операторы из одного символа и скобки
+            # Операторы из 1 символа и скобки
             if char in ['+', '-', '*', '/', '%']:
                 tokens.append(self.make_token("op", char, line, start_pos, start_pos))
                 i += 1
@@ -153,6 +153,13 @@ class SyntaxParser:
 
         self.parse_E()
 
+        if self.pos < len(self.tokens):
+            extra_token = self.peek()
+            if extra_token['lexeme'] == ')':
+                self.add_error("Лишняя закрывающая скобка ')' (нарушен баланс скобок)", extra_token)
+            else:
+                self.add_error(f"Неожиданный символ после завершения выражения: '{extra_token['lexeme']}'", extra_token)
+
     # E -> TA
     def parse_E(self):
         left_val = self.parse_T()
@@ -199,7 +206,8 @@ class SyntaxParser:
     def parse_F(self):
         token = self.peek()
         if not token:
-            self.add_error("Ожидался операнд, но выражение закончилось")
+            last_token = self.tokens[-1] if self.tokens else None
+            self.add_error("Ожидался операнд (число, id или '('), но выражение закончилось", last_token)
             return None
 
         if token['type'] == 'num':
@@ -218,12 +226,15 @@ class SyntaxParser:
         elif token['lexeme'] == '(':
             self.advance()
             val = self.parse_E()
+
             if not self.match_lexeme(')'):
-                self.add_error("Пропущена закрывающая скобка ')'", self.peek())
+                err_token = self.peek() if self.peek() else self.tokens[-1]
+                self.add_error("Пропущена закрывающая скобка ')' (нарушен баланс скобок)", err_token)
             return val
 
         else:
-            self.add_error(f"Неверный символ/операнд: '{token['lexeme']}'", token)
+            self.add_error(f"Синтаксическая ошибка: ожидалось число, переменная или '(', получено '{token['lexeme']}'",
+                           token)
             self.advance()
             return None
 
