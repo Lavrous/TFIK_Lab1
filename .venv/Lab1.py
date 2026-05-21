@@ -12,6 +12,7 @@ from PySide6.QtGui import QTextCursor, QColor
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, QIODevice, QObject, QEvent, Qt
 
+
 def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
@@ -69,6 +70,7 @@ class AstNode:
             result += child.to_tree_string(child_indent, child_is_last, is_root=False)
 
         return result
+
 
 class LexicalAnalyzer:
     def __init__(self):
@@ -140,7 +142,9 @@ class LexicalAnalyzer:
                     lexeme = ""
                     state = 0
                 else:
-                    tokens.append(self.make_token("ERROR", "Лексическая ошибка (ожидалось >)", lexeme, line, start_pos, pos - 1, True))
+                    tokens.append(
+                        self.make_token("ERROR", "Лексическая ошибка (ожидалось >)", lexeme, line, start_pos, pos - 1,
+                                        True))
                     lexeme = ""
                     state = 0
                     i -= 1
@@ -263,7 +267,6 @@ class SyntaxParser:
 
         return ast_root, self.errors + self.semantic_errors
 
-    # 1. Start -> def id (Params) -> Type : Body
     def parse_Start(self):
         self.match(expected_lexeme='def')
 
@@ -308,7 +311,6 @@ class SyntaxParser:
 
         return root
 
-    # 2. Params -> Param Params’ | ε
     def parse_Params(self):
         parsed_params = []
         if self.peek() and self.peek()['lexeme'] != ')':
@@ -320,7 +322,6 @@ class SyntaxParser:
                 if p: parsed_params.append(p)
         return parsed_params
 
-    # 4. Param -> id: Type
     def parse_Param(self):
         has_error = False
         id_token = self.peek()
@@ -359,7 +360,6 @@ class SyntaxParser:
                 break
             self.advance()
 
-    # 5. Body -> return Expr ;
     def parse_Body(self):
         self.match(expected_lexeme='return')
 
@@ -378,12 +378,10 @@ class SyntaxParser:
 
         return ret_node
 
-    # 6. Expr -> Term Expr’
     def parse_Expr(self):
         left = self.parse_Term()
         return self.parse_Expr_prime(left)
 
-    # 7. Expr’ -> + Term Expr’ | ε
     def parse_Expr_prime(self, left):
         while self.peek() and self.peek()['lexeme'] == '+':
             op_token = self.peek()
@@ -397,12 +395,10 @@ class SyntaxParser:
 
         return left
 
-    # 8. Term -> Factor Term’
     def parse_Term(self):
         left = self.parse_Factor()
         return self.parse_Term_prime(left)
 
-    # 9. Term’ -> * Factor Term’ | ε
     def parse_Term_prime(self, left):
         while self.peek() and self.peek()['lexeme'] == '*':
             op_token = self.peek()
@@ -416,7 +412,6 @@ class SyntaxParser:
 
         return left
 
-    # 10. Factor -> id | (Expr)
     def parse_Factor(self):
         token = self.peek()
         if not token:
@@ -436,12 +431,140 @@ class SyntaxParser:
             self.advance()
             expr_node = self.parse_Expr()
             self.match(expected_lexeme=')')
-            return expr_node
+            paren_node = AstNode("ParenNode")
+            paren_node.add_child(expr_node)
+            return paren_node
 
         else:
             self.add_error(f"Ожидался идентификатор или '(', встречено '{token['lexeme']}'", token)
             self.advance()
             return None
+
+
+class IRGenerator:
+
+    def __init__(self):
+        self.instructions = []
+        self.temp_count = 0
+
+    def new_temp(self):
+        self.temp_count += 1
+        return f"t{self.temp_count}"
+
+    def generate(self, node):
+        if not node: return
+        label = node.label.split('\n')[0]
+
+        if label == "FunctionDeclNode":
+            func_name = node.label.split('\n')[1].split(': ')[1]
+            self.instructions.append(("FUNC", func_name))
+            self.generate(node.children[0])  # Args
+            self.generate(node.children[1])  # Body
+
+        elif label == "ArgNode":
+            for child in node.children:
+                param_name = child.label.split('\n')[1].split(': ')[1]
+                self.instructions.append(("PARAM", param_name))
+
+        elif label == "statement sequence":
+            for child in node.children:
+                self.generate(child)
+
+        elif label == "ReturnNode":
+            res = self.generate_expr(node.children[0])
+            self.instructions.append(("RETURN", res))
+
+    def generate_expr(self, node):
+        label = node.label.split('\n')[0]
+        if label == "IntNode":
+            return node.label.split('\n')[1].split(': ')[1]
+
+        elif label == "BinOpNode":
+            op = node.label.split('\n')[1].split(': ')[1]
+            left = self.generate_expr(node.children[0])
+            right = self.generate_expr(node.children[1])
+            res = self.new_temp()
+            self.instructions.append(("OP", op, left, right, res))
+            return res
+
+        elif label == "ParenNode":
+            inner = self.generate_expr(node.children[0])
+            res = self.new_temp()
+            self.instructions.append(("COPY", inner, res))
+            return res
+
+
+class Optimizer:
+
+    def __init__(self, instructions):
+        self.instructions = instructions.copy()
+
+    def optimize_parentheses(self):
+        changed = True
+        while changed:
+            changed = False
+            new_inst = []
+            replace_map = {}
+
+            for inst in self.instructions:
+                if inst[0] == "COPY":
+                    replace_map[inst[2]] = inst[1]
+                    changed = True
+                else:
+                    new_inst.append(inst)
+
+            if changed:
+                applied_inst = []
+                for inst in new_inst:
+                    if inst[0] == "OP":
+                        l = replace_map.get(inst[2], inst[2])
+                        r = replace_map.get(inst[3], inst[3])
+                        applied_inst.append(("OP", inst[1], l, r, inst[4]))
+                    elif inst[0] == "RETURN":
+                        val = replace_map.get(inst[1], inst[1])
+                        applied_inst.append(("RETURN", val))
+                    else:
+                        applied_inst.append(inst)
+                self.instructions = applied_inst
+
+    def optimize_unused_params(self):
+        used_vars = set()
+        for inst in self.instructions:
+            if inst[0] == "OP":
+                used_vars.add(inst[2])
+                used_vars.add(inst[3])
+            elif inst[0] == "COPY":
+                used_vars.add(inst[1])
+            elif inst[0] == "RETURN":
+                used_vars.add(inst[1])
+        new_inst = []
+        for inst in self.instructions:
+            if inst[0] == "PARAM":
+                if inst[1] in used_vars:
+                    new_inst.append(inst)
+            else:
+                new_inst.append(inst)
+
+        self.instructions = new_inst
+
+    def get_instructions(self):
+        return self.instructions
+
+
+def format_tac(instructions):
+    lines = []
+    for inst in instructions:
+        if inst[0] == "FUNC":
+            lines.append(f"func {inst[1]}:")
+        elif inst[0] == "PARAM":
+            lines.append(f"  param {inst[1]}")
+        elif inst[0] == "OP":
+            lines.append(f"  {inst[4]} = {inst[2]} {inst[1]} {inst[3]}")
+        elif inst[0] == "COPY":
+            lines.append(f"  {inst[2]} = {inst[1]}  // (результат скобок)")
+        elif inst[0] == "RETURN":
+            lines.append(f"  return {inst[1]}")
+    return "\n".join(lines)
 
 class LanguageProcessorApp(QObject):
     def __init__(self):
@@ -589,25 +712,7 @@ class LanguageProcessorApp(QObject):
         browser = QTextBrowser(dialog)
         html_content = """
         <h2>Руководство пользователя</h2>
-        <p>Добро пожаловать в Языковой процессор! Ниже представлено описание основных функций.</p>
-        <h3>Меню "Файл"</h3>
-        <ul>
-            <li><b>Создать:</b> Создает новый пустой текстовый файл.</li>
-            <li><b>Открыть:</b> Открывает существующий файл в редакторе.</li>
-            <li><b>Сохранить:</b> Сохраняет текущие изменения в открытом файле.</li>
-            <li><b>Сохранить как:</b> Позволяет сохранить текущий текст в новый файл.</li>
-            <li><b>Выход:</b> Закрывает программу с предупреждением</li>
-        </ul>
-        <h3>Меню "Правка"</h3>
-        <ul>
-            <li><b>Отменить (Ctrl+Z):</b> Отменяет последнее действие в активном поле.</li>
-            <li><b>Повторить (Ctrl+Y):</b> Повторяет отмененное действие.</li>
-            <li><b>Вырезать (Ctrl+X):</b> Удаляет выделенный текст и помещает его в буфер обмена.</li>
-            <li><b>Копировать (Ctrl+C):</b> Помещает выделенный текст в буфер обмена.</li>
-            <li><b>Вставить (Ctrl+V):</b> Вставляет текст из буфера обмена.</li>
-            <li><b>Удалить (Ctrl+D):</b> Удаляет выделенный текст без сохранения в буфер.</li>
-            <li><b>Выделить всё (Ctrl+A):</b> Выделяет весь текст в активном поле.</li>
-        </ul>
+        ...
         """
         browser.setHtml(html_content)
         layout.addWidget(browser)
@@ -615,9 +720,8 @@ class LanguageProcessorApp(QObject):
 
     def show_about(self):
         about_text = """
-        <h3>Языковой процессор v0.2</h3>
-        <p>Данная программа является результатом лабораторных работ по ТФИК.</p>
-        <p><b>Разработано с использованием:</b> Python и PySide6.</p>
+        <h3>Языковой процессор v0.3</h3>
+        <p>Добавлена генерация промежуточного представления (IR) и локальные оптимизации.</p>
         """
         QMessageBox.about(self.window, "О программе", about_text)
 
@@ -649,14 +753,34 @@ class LanguageProcessorApp(QObject):
             if ast_root:
                 tree_str = ast_root.to_tree_string()
                 ast_file_path = os.path.join(os.getcwd(), "AST.txt")
-
                 with open(ast_file_path, "w", encoding="utf-8") as f:
                     f.write(tree_str)
+                ## os.startfile(ast_file_path)
 
-                    os.startfile(ast_file_path)
+                ir_gen = IRGenerator()
+                ir_gen.generate(ast_root)
+                initial_tac = ir_gen.instructions
+
+                optimizer = Optimizer(initial_tac)
+
+                ir_log = "\n"
+                ir_log += format_tac(initial_tac) + "\n\n"
+
+                optimizer.optimize_parentheses()
+                ir_log += "\n"
+                ir_log += format_tac(optimizer.get_instructions()) + "\n\n"
+
+                optimizer.optimize_unused_params()
+                ir_log += "\n"
+                ir_log += format_tac(optimizer.get_instructions()) + "\n"
+
+                ir_file_path = os.path.join(os.getcwd(), "IR_Optimization.txt")
+                with open(ir_file_path, "w", encoding="utf-8") as f:
+                    f.write(ir_log)
+                os.startfile(ir_file_path)
 
             QMessageBox.information(self.window, "Результат",
-                                    "Код написан верно! Ошибок не найдено.\nДерево AST открыто в текстовом редакторе.")
+                                    "Код написан верно! Ошибок не найдено.\nФайл оптимизаций IR открыт.")
             return
 
         error_color = QColor(255, 200, 200)
